@@ -18,5 +18,7 @@ describe.skipIf(files.length === 0)('headers of generated test videos', () => {
     expect(h!.codec).toBe(name.includes('hevc') ? 'hvc1' : 'avc1');
     expect(h!.height).toBeGreaterThan(h!.width!); // portrait after rotation
     expect(h!.recordedAtSource).toBe('apple-creationdate');
+    if (name.includes('captioned')) expect(h!.caption).toBe('M3/4 4 pull felt quick');
+    else expect(h!.caption).toBeNull();
   });
 });

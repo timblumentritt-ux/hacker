@@ -19,6 +19,7 @@ import { dupKeyOf, type QualityTier, type Swing, type UploadLogEntry } from '../
 import { isQuotaError } from '../../lib/db';
 import * as folder from '../../lib/videoFolder';
 import { formatBytes } from '../../lib/storage';
+import { parseNotes, parseShorthand, type SwingLabel } from '../../lib/shorthand';
 
 const FORMAT_HELP =
   'This browser cannot play this video. On the iPhone, open Settings → Camera → Formats and choose Most Compatible, then film again. ' +
@@ -46,6 +47,8 @@ interface Clip {
   status: 'ready' | 'working' | 'done' | 'skipped' | 'failed';
   message: string;
   missing: boolean;
+  /** Where the labels came from, or a problem with a caption, shown under the row's status. */
+  labelInfo: { kind: 'ok' | 'warn'; text: string } | null;
 }
 
 // The batch lives outside the screen, so it survives moving to another screen and back,
@@ -102,7 +105,7 @@ async function addFiles(files: File[]): Promise<void> {
       key: crypto.randomUUID(), file, url: URL.createObjectURL(file), dupKey, header: null,
       recordedAt: file.lastModified, recordedAtSource: 'file-date', fps: null, tier: 'unknown', thumb: null,
       readable: 'pending', duplicate: false, club: null, power: null, rating: null, result: null, note: '',
-      mode: 'save', status: 'ready', message: '', missing: false,
+      mode: 'save', status: 'ready', message: '', missing: false, labelInfo: null,
     };
     state.clips.push(clip);
     added.push(clip);
@@ -135,6 +138,56 @@ async function inspect(clip: Clip): Promise<void> {
   clip.duplicate = await wasUploaded(clip.dupKey);
   clip.thumb = await makeThumb(clip.url);
   clip.readable = clip.thumb ? 'ok' : 'failed';
+  applyCaption(clip);
+}
+
+function applyLabel(c: Clip, label: SwingLabel): void {
+  c.club = label.club;
+  c.power = label.power;
+  c.rating = label.rating;
+  c.result = label.result;
+  c.note = label.note;
+  c.missing = false;
+}
+
+/** If the video carries a caption in the swing shorthand, use it, unless the golfer has labeled the clip already. */
+function applyCaption(c: Clip): void {
+  const caption = c.header?.caption;
+  if (!caption || c.club || c.rating) return;
+  const parsed = parseShorthand(caption);
+  if (parsed.ok) {
+    applyLabel(c, parsed.label);
+    c.labelInfo = { kind: 'ok', text: `Filled in from the video's caption "${caption}".` };
+  } else {
+    c.labelInfo = { kind: 'warn', text: `Caption "${caption}" not understood: ${parsed.error}` };
+  }
+}
+
+/** Fills in clips from pasted notes: line 1 goes to the first waiting clip, line 2 to the second, and so on. */
+function applyNotes(text: string): { filled: number; problems: string[]; summary: string } {
+  const lines = parseNotes(text);
+  const waiting = state.clips.filter((c) => c.status === 'ready');
+  const problems: string[] = [];
+  let filled = 0;
+  lines.forEach((line, i) => {
+    const clip = waiting[i];
+    if (!clip) return;
+    if (line.parsed.ok) {
+      applyLabel(clip, line.parsed.label);
+      clip.labelInfo = { kind: 'ok', text: `Filled in from your notes: "${line.text}".` };
+      filled++;
+    } else {
+      clip.labelInfo = { kind: 'warn', text: `Note "${line.text}" not understood: ${line.parsed.error}` };
+      problems.push(`Line ${line.lineNo} ("${line.text}"), clip ${state.clips.indexOf(clip) + 1}: ${line.parsed.error}`);
+    }
+  });
+  let summary = `Filled in ${filled} of ${waiting.length} clip${waiting.length === 1 ? '' : 's'}.`;
+  if (lines.length > waiting.length) summary += ` ${lines.length - waiting.length} extra line${lines.length - waiting.length === 1 ? ' was' : 's were'} not used: there are more lines than clips.`;
+  if (lines.length < waiting.length) summary += ` ${waiting.length - lines.length} clip${waiting.length - lines.length === 1 ? ' has' : 's have'} no line: there are more clips than lines.`;
+  if (lines.length !== waiting.length) summary += ' Check that the notes and clips line up.';
+  state.touched = true;
+  changed();
+  return { filled, problems, summary };
 }
 
 /** Draws one early frame. Returns null if the browser cannot decode the video. */
@@ -422,6 +475,40 @@ export const uploadScreen: Screen = {
     const logBox = h('div');
     const statusLine = h('div');
 
+    const notesInput = h('textarea', {
+      rows: 6, style: 'width: 100%; font-family: ui-monospace, monospace',
+      placeholder: 'W 5 push\nM3/4 4 pull felt quick\nD 2 slice\nC 5',
+    });
+    const notesResult = h('div');
+    const notesBox = h('details', { class: 'card' },
+      h('summary', null, h('strong', null, 'Paste notes from your phone'), h('span', { class: 'muted' }, ' – fill in many clips at once')),
+      h('p', null, 'One line per swing, in the order you filmed them. Line 1 fills the first waiting clip, line 2 the second, and so on. ',
+        h('a', { href: '#/guide' }, 'How to write the lines')),
+      notesInput,
+      h('div', { class: 'row' },
+        h('button', {
+          class: 'primary',
+          onclick: () => {
+            if (!state.clips.some((c) => c.status === 'ready')) {
+              notesResult.replaceChildren(h('p', { class: 'warn' }, 'Drop the videos first, then paste your notes.'));
+              return;
+            }
+            if (state.clips.some((c) => c.readable === 'pending')) {
+              notesResult.replaceChildren(h('p', { class: 'warn' }, 'Still reading the clips. Try again in a moment.'));
+              return;
+            }
+            const r = applyNotes(notesInput.value);
+            notesResult.replaceChildren(
+              h('p', { class: r.problems.length || /line up/.test(r.summary) ? 'warn' : 'good' }, r.summary),
+              r.problems.length ? h('ul', null, r.problems.map((p) => h('li', { class: 'warn' }, p))) : '',
+            );
+          },
+        }, 'Fill in clips'),
+        h('span', { class: 'muted' }, 'You can still change anything afterwards.'),
+      ),
+      notesResult,
+    );
+
     const focusNote = () => {
       const input = table.querySelector<HTMLInputElement>('tr.selected input.note');
       input?.focus();
@@ -454,6 +541,7 @@ export const uploadScreen: Screen = {
       else if (c.status !== 'ready') status = h('span', { class: c.status === 'done' ? 'good' : c.status === 'failed' ? 'error' : 'warn' }, c.message);
       else if (c.readable === 'failed') status = h('span', { class: 'error' }, 'Cannot play this video in this browser.');
       else if (c.duplicate) status = h('span', { class: 'warn' }, 'Already uploaded; will be skipped.');
+      else if (c.labelInfo) status = h('span', { class: c.labelInfo.kind === 'ok' ? 'muted' : 'warn' }, c.labelInfo.text);
 
       const note = h('input', {
         class: 'note', type: 'text', value: c.note, disabled: off, placeholder: 'note',
@@ -571,7 +659,7 @@ export const uploadScreen: Screen = {
       h('h1', null, 'Upload swings'),
       folderLine,
       h('div', { class: 'upload-layout' },
-        h('div', null, drop, statusLine, table, logBox),
+        h('div', null, drop, notesBox, statusLine, table, logBox),
         h('div', { class: 'preview' },
           h('div', { class: 'card' }, previewName, preview, h('div', { class: 'row' }, 'Speed ', speed, h('span', { class: 'muted' }, 'Space plays or pauses'))),
           keysBox,

@@ -16,6 +16,10 @@ export interface VideoHeader {
   nominalFps: number | null;
   /** Frames divided by duration. Lower than nominal when part of the clip is slowed down. */
   averageFps: number | null;
+  /** A caption or description stored in the file, if any (for example a Photos caption, if Photos includes it). */
+  caption: string | null;
+  /** Every text value found in the file's metadata, by key. */
+  metadata: Record<string, string>;
 }
 
 /** Reads bytes from a file. Lets tests use a plain buffer. */
@@ -114,36 +118,57 @@ export function parseAppleDate(s: string): number | null {
   return Number.isFinite(ms) ? ms : null;
 }
 
-/** Reads com.apple.quicktime.creationdate from moov/meta (keys + ilst). */
-function appleCreationDate(b: Uint8Array, moov: Box): number | null {
+/** Reads every text value in moov/meta (keys + ilst), such as com.apple.quicktime.creationdate. */
+function appleKeys(b: Uint8Array, moov: Box): Record<string, string> {
+  const out: Record<string, string> = {};
   const meta = child(b, moov, 'meta');
-  if (!meta) return null;
+  if (!meta) return out;
   // QuickTime meta has children right away; MP4 meta has 4 bytes of version and flags first.
   let kids = childBoxes(b, meta.dataStart, meta.end);
   if (!kids.some((k) => k.type === 'keys')) kids = childBoxes(b, meta.dataStart + 4, meta.end);
   const keys = kids.find((k) => k.type === 'keys');
   const ilst = kids.find((k) => k.type === 'ilst');
-  if (!keys || !ilst) return null;
+  if (!keys || !ilst) return out;
   const v = new DataView(b.buffer, b.byteOffset, b.byteLength);
   const count = v.getUint32(keys.dataStart + 4);
+  const names: string[] = [];
   let at = keys.dataStart + 8;
-  let index = -1;
   for (let i = 1; i <= count && at + 8 <= keys.end; i++) {
     const size = v.getUint32(at);
     if (size < 8) break;
-    const name = new TextDecoder().decode(b.subarray(at + 8, at + size));
-    if (name === 'com.apple.quicktime.creationdate') index = i;
+    names[i] = new TextDecoder().decode(b.subarray(at + 8, at + size));
     at += size;
   }
-  if (index < 0) return null;
   for (const item of childBoxes(b, ilst.dataStart, ilst.end)) {
-    if (v.getUint32(item.start + 4) !== index) continue;
+    const name = names[v.getUint32(item.start + 4)];
     const data = child(b, item, 'data');
-    if (!data || data.dataStart + 8 > data.end) return null;
-    return parseAppleDate(new TextDecoder().decode(b.subarray(data.dataStart + 8, data.end)));
+    if (!name || !data || data.dataStart + 8 > data.end) continue;
+    const type = v.getUint32(data.dataStart);
+    if (type === 1) out[name] = new TextDecoder().decode(b.subarray(data.dataStart + 8, data.end)); // UTF-8 text
   }
-  return null;
+  return out;
 }
+
+/** Reads QuickTime user-data text such as ©des (description), ©nam (title), ©cmt (comment). */
+function userDataText(b: Uint8Array, moov: Box): Record<string, string> {
+  const out: Record<string, string> = {};
+  const udta = child(b, moov, 'udta');
+  if (!udta) return out;
+  const v = new DataView(b.buffer, b.byteOffset, b.byteLength);
+  for (const box of childBoxes(b, udta.dataStart, udta.end)) {
+    if (box.type.charCodeAt(0) !== 0xa9 || box.dataStart + 4 > box.end) continue;
+    const len = v.getUint16(box.dataStart);
+    const end = Math.min(box.dataStart + 4 + len, box.end);
+    out[`udta.${box.type.slice(1)}`] = new TextDecoder().decode(b.subarray(box.dataStart + 4, end));
+  }
+  return out;
+}
+
+/** Where a caption or description might be stored, most likely first. */
+const CAPTION_KEYS = [
+  'com.apple.quicktime.description', 'com.apple.quicktime.title', 'com.apple.quicktime.comment',
+  'udta.des', 'udta.nam', 'udta.cmt',
+];
 
 interface TrackInfo {
   handler: string;
@@ -224,7 +249,10 @@ export async function readVideoHeader(read: ByteReader, fileSize: number): Promi
     const ver = bytes[mvhd.dataStart];
     mvhdDate = qtDate(ver === 1 ? Number(v.getBigUint64(mvhd.dataStart + 4)) : v.getUint32(mvhd.dataStart + 4));
   }
-  const appleDate = appleCreationDate(bytes, moov);
+  const metadata = { ...userDataText(bytes, moov), ...appleKeys(bytes, moov) };
+  const created = metadata['com.apple.quicktime.creationdate'];
+  const appleDate = created ? parseAppleDate(created) : null;
+  const caption = CAPTION_KEYS.map((k) => metadata[k]?.trim()).find((t) => t) ?? null;
 
   const video = childBoxes(bytes, moov.dataStart, moov.end)
     .filter((c) => c.type === 'trak')
@@ -242,6 +270,8 @@ export async function readVideoHeader(read: ByteReader, fileSize: number): Promi
     frameCount: video?.frameCount || null,
     nominalFps: video && video.fastDelta ? round2(video.timescale / video.fastDelta) : null,
     averageFps: video && durationSec ? round2(video.frameCount / durationSec) : null,
+    caption,
+    metadata,
   };
 }
 

@@ -4,7 +4,7 @@ import Foundation
 
 // Makes synthetic test videos written by Apple's own video library, like the iPhone's.
 // Build: swiftc -O scripts/makevideo.swift -o scripts/makevideo
-// Usage: scripts/makevideo out.mov codec(hevc|h264) width height fps seconds rotate(0|1) isoDate
+// Usage: scripts/makevideo out.mov codec(hevc|h264) width height fps seconds rotate(0|1) isoDate [caption]
 let a = CommandLine.arguments
 let url = URL(fileURLWithPath: a[1])
 let codec: AVVideoCodecType = a[2] == "hevc" ? .hevc : .h264
@@ -27,7 +27,16 @@ item.key = "com.apple.quicktime.creationdate" as NSString
 item.keySpace = .quickTimeMetadata
 item.value = date as NSString
 item.dataType = kCMMetadataBaseDataType_UTF8 as String
-writer.metadata = [item]
+var items = [item]
+if a.count > 9 {
+  let cap = AVMutableMetadataItem()
+  cap.key = "com.apple.quicktime.description" as NSString
+  cap.keySpace = .quickTimeMetadata
+  cap.value = a[9] as NSString
+  cap.dataType = kCMMetadataBaseDataType_UTF8 as String
+  items.append(cap)
+}
+writer.metadata = items
 writer.startWriting()
 writer.startSession(atSourceTime: .zero)
 

@@ -38,10 +38,11 @@ function audioTrak() {
   const hdlr = box('hdlr', zeros(4), zeros(4), enc.encode('soun'), zeros(12));
   return box('trak', tkhd, box('mdia', mdhd, hdlr, box('minf', box('stbl'))));
 }
-function appleMeta(date: string) {
-  const key = enc.encode('com.apple.quicktime.creationdate');
-  const keys = box('keys', zeros(4), u32(1), cat(u32(8 + key.length), enc.encode('mdta'), key));
-  const ilst = box('ilst', box(u32(1), box('data', u32(1), zeros(4), enc.encode(date))));
+function appleMeta(date: string, extra: Record<string, string> = {}) {
+  const entries = Object.entries({ 'com.apple.quicktime.creationdate': date, ...extra });
+  const keyBoxes = entries.map(([k]) => { const key = enc.encode(k); return cat(u32(8 + key.length), enc.encode('mdta'), key); });
+  const keys = box('keys', zeros(4), u32(entries.length), ...keyBoxes);
+  const ilst = box('ilst', ...entries.map(([, val], i) => box(u32(i + 1), box('data', u32(1), zeros(4), enc.encode(val)))));
   return box('meta', box('hdlr', zeros(4), zeros(4), enc.encode('mdta'), zeros(12)), keys, ilst);
 }
 function mvhd(unixSeconds: number) {
@@ -109,6 +110,29 @@ describe('video header', () => {
     expect(parseAppleDate('2026-11-05T14:23:11-0500')).toBe(Date.UTC(2026, 10, 5, 19, 23, 11));
     expect(parseAppleDate('2026-11-05T14:23:11+0100')).toBe(Date.UTC(2026, 10, 5, 13, 23, 11));
     expect(parseAppleDate('garbage')).toBeNull();
+  });
+});
+
+describe('captions', () => {
+  it('reads a caption stored as an Apple description key', async () => {
+    const file = box('moov', mvhd(0), videoTrak({ rotate: false, w: 1920, h: 1080, timescale: 600, stts: [[90, 20]], codec: 'hvc1' }),
+      appleMeta('2026-11-05T14:23:11-0500', { 'com.apple.quicktime.description': 'W 5 push' }));
+    const h = await readVideoHeader(bufferReader(file), file.length);
+    expect(h!.caption).toBe('W 5 push');
+    expect(h!.metadata['com.apple.quicktime.creationdate']).toBe('2026-11-05T14:23:11-0500');
+  });
+
+  it('reads a caption stored as QuickTime user data', async () => {
+    const text = enc.encode('M3/4 4 pull');
+    const des = box(new Uint8Array([0xa9, 0x64, 0x65, 0x73]), u16(text.length), u16(0), text);
+    const file = box('moov', mvhd(0), videoTrak({ rotate: false, w: 1920, h: 1080, timescale: 600, stts: [[90, 20]], codec: 'hvc1' }), box('udta', des));
+    const h = await readVideoHeader(bufferReader(file), file.length);
+    expect(h!.caption).toBe('M3/4 4 pull');
+  });
+
+  it('has no caption when the file has none', async () => {
+    const file = box('moov', mvhd(0), videoTrak({ rotate: false, w: 1920, h: 1080, timescale: 600, stts: [[90, 20]], codec: 'hvc1' }));
+    expect((await readVideoHeader(bufferReader(file), file.length))!.caption).toBeNull();
   });
 });
 
