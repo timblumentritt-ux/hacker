@@ -1,0 +1,49 @@
+/* Placeholder styles only. The visual design comes from Claude Design. */
+:root {
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  color: #1a1a1a;
+  background: #fafafa;
+  --line: #ddd;
+  --accent: #2563eb;
+  --warn: #b45309;
+  --bad: #b91c1c;
+  --good: #15803d;
+}
+body { margin: 0; }
+.nav { display: flex; gap: 16px; align-items: center; padding: 10px 20px; border-bottom: 1px solid var(--line); background: #fff; }
+.nav a { color: #444; text-decoration: none; }
+.nav a.active { color: var(--accent); font-weight: 600; }
+.brand { margin-right: 12px; }
+.main { padding: 16px 20px; max-width: 1400px; }
+h1 { font-size: 20px; margin: 4px 0 12px; }
+h2 { font-size: 16px; margin: 20px 0 8px; }
+table { border-collapse: collapse; }
+th, td { border: 1px solid var(--line); padding: 4px 8px; text-align: left; vertical-align: middle; }
+th { background: #f0f0f0; font-weight: 600; }
+button { font: inherit; padding: 4px 10px; cursor: pointer; }
+button.primary { background: var(--accent); color: #fff; border: 1px solid var(--accent); border-radius: 3px; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.muted { color: #777; }
+.error { color: var(--bad); }
+.warn { color: var(--warn); }
+.good { color: var(--good); }
+.card { background: #fff; border: 1px solid var(--line); padding: 12px; margin: 8px 0; }
+.dialog { max-width: 520px; }
+.dropzone { border: 2px dashed #aaa; padding: 24px; text-align: center; background: #fff; margin-bottom: 12px; }
+.dropzone.over { border-color: var(--accent); background: #eef4ff; }
+.upload-layout { display: grid; grid-template-columns: 1fr 340px; gap: 16px; align-items: start; }
+.clips td { white-space: nowrap; }
+.clips tr.selected td { background: #e8f0ff; }
+.clips tr.missing td.need { outline: 2px solid var(--warn); outline-offset: -2px; }
+.clips img { width: 54px; height: 96px; object-fit: cover; display: block; background: #000; }
+.clips input.note { width: 160px; }
+.preview video { width: 100%; max-height: 520px; background: #000; }
+.keys td:first-child { font-family: ui-monospace, monospace; white-space: nowrap; }
+.grid td.cell a { display: block; text-align: center; min-width: 50px; text-decoration: none; color: inherit; }
+.grid td.cell.full { background: #e9f7ee; }
+.tier-full { color: var(--good); font-weight: 600; }
+.tier-reduced { color: var(--warn); font-weight: 600; }
+dl.facts { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; }
+dl.facts dt { color: #666; }
+dl.facts dd { margin: 0; }
