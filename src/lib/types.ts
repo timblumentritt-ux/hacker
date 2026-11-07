@@ -1,12 +1,7 @@
 // Stored records (see SPEC.md, "Data model").
 
-import type { BallResult, Handedness } from './ballResult';
+import type { BallResult } from './ballResult';
 import type { Rating, SwingTypeId } from './swingTypes';
-
-export interface Profile {
-  name: string;
-  handedness: Handedness;
-}
 
 export type KeepVideoMode = 'all' | 'model-only';
 

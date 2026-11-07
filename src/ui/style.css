@@ -13,6 +13,8 @@
 body { margin: 0; }
 .nav { display: flex; gap: 16px; align-items: center; padding: 10px 20px; border-bottom: 1px solid var(--line); background: #fff; }
 nav[hidden] { display: none; }
+.nav .spacer { flex: 1; }
+.banner { background: #fff7e0; border-bottom: 1px solid #e8c66a; padding: 8px 20px; }
 .nav a { color: #444; text-decoration: none; }
 .nav a.active { color: var(--accent); font-weight: 600; }
 .brand { margin-right: 12px; }

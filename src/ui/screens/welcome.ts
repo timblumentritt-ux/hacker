@@ -1,12 +1,13 @@
-// First use: name and right or left hand.
+// First use, and adding another golfer: name and right or left hand.
 import type { Screen } from '../app';
 import { go } from '../app';
 import { h } from '../dom';
-import { setProfile } from '../../lib/store';
+import { createProfile, listProfiles } from '../../lib/profiles';
 import type { Handedness } from '../../lib/ballResult';
+import { resetUploadBatch, uploadBusy } from './upload';
 
 export function profileFields(initial?: { name: string; handedness: Handedness }) {
-  const name = h('input', { type: 'text', value: initial?.name ?? '', placeholder: 'Your name', required: true });
+  const name = h('input', { type: 'text', value: initial?.name ?? '', placeholder: 'Your name', required: true, maxLength: 60 });
   const right = h('input', { type: 'radio', name: 'hand', value: 'right', checked: (initial?.handedness ?? 'right') === 'right' });
   const left = h('input', { type: 'radio', name: 'hand', value: 'left', checked: initial?.handedness === 'left' });
   const el = h('div', null,
@@ -21,8 +22,9 @@ export function profileFields(initial?: { name: string; handedness: Handedness }
 }
 
 export const welcomeScreen: Screen = {
-  title: 'Welcome',
-  mount(root) {
+  title: 'New golfer',
+  async mount(root) {
+    const others = await listProfiles();
     const fields = profileFields();
     const error = h('p', { class: 'error' });
     const form = h('form', {
@@ -34,15 +36,23 @@ export const welcomeScreen: Screen = {
           error.textContent = 'Please enter your name.';
           return;
         }
-        await setProfile(p);
+        if (uploadBusy()) {
+          error.textContent = 'Wait for the current upload to finish first.';
+          return;
+        }
+        resetUploadBatch();
+        await createProfile(p);
         go('library');
       },
     },
-      h('h1', null, 'Welcome to Hacker'),
-      h('p', null, 'Hacker keeps everything in this browser. There is no account and nothing is uploaded anywhere.'),
+      others.length ? h('p', null, h('a', { href: '#/profiles' }, '← Profiles')) : '',
+      h('h1', null, others.length ? 'Add a golfer' : 'Welcome to Hacker'),
+      others.length ? '' : h('p', null, 'Hacker helps you compare each swing with your own best swings, and prepares a briefing for a Claude chat before a round.'),
+      h('p', null, 'Your swings stay on this computer, in this browser. Nothing is uploaded and there is no account or password.'),
       fields.el,
       error,
-      h('button', { type: 'submit', class: 'primary' }, 'Start'),
+      h('button', { type: 'submit', class: 'primary' }, others.length ? 'Add golfer' : 'Start'),
+      h('p', { class: 'muted' }, 'Sharing this computer? Each golfer can add a profile and switch between them. Profiles have no password, so anyone using this browser can open them.'),
     );
     root.append(form);
     fields.focus();

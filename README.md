@@ -2,7 +2,9 @@
 
 A golf swing coach that runs entirely in the browser (Chrome or Edge on a Mac or PC). See [SPEC.md](SPEC.md) for the full plan.
 
-Nothing leaves the computer: swings are stored in the browser, and videos can be kept in a folder you choose.
+**Live site:** https://timblumentritt-ux.github.io/hacker/
+
+Nothing leaves the computer: swings are stored in the browser, and videos can be kept in a folder you choose. Several golfers can share one browser, each with their own profile (no passwords).
 
 ## Commands
 
@@ -17,7 +19,7 @@ Run these in Terminal from the `hacker` folder (`cd ~/hacker`).
 | Check the code for type errors | `npm run typecheck` |
 | Build the website for hosting | `npm run build` (the site lands in `dist/`) |
 | Try the built website locally | `npm run preview` |
-| Deploy | Not set up yet: waiting on the choice of host |
+| Publish the website | `npm run deploy` (commit first; the live site updates in about a minute) |
 
 ## Test videos
 
@@ -41,6 +43,10 @@ node scripts/probe-browser.mjs "/Applications/Microsoft Edge.app/Contents/MacOS/
 
 On any computer, the app's **Diagnostics** page runs the same checks by hand, tests a real iPhone video, and tests folder access.
 
+## How publishing works
+
+`npm run deploy` runs the tests, builds the site into `dist/`, and pushes it to the `gh-pages` branch of the GitHub repository. GitHub Pages serves that branch. The `main` branch holds the source code.
+
 ## Layout
 
 - `src/lib/` – the analysis library and data layer, with no screen code: swing types, the rolling rule, the video header reader, IndexedDB with versioned migrations, the video folder, CSV.
@@ -54,4 +60,5 @@ The database layout lives in `MIGRATIONS` in `src/lib/db.ts`. Never edit an exis
 ## Status
 
 - Milestone 0 (setup): done on the MacBook Pro. PC checks pending.
-- Milestone 1 (upload, label, rolling sets): built with placeholder screens. Deployment pending the choice of host.
+- Milestone 1 (upload, label, rolling sets): built with placeholder screens and published.
+- Local golfer profiles (added 2026-11-06): done.

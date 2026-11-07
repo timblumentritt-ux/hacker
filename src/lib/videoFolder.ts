@@ -1,7 +1,9 @@
 // Optional video folder on the golfer's computer (see SPEC.md, "Video folder").
-// Hacker reads, writes, and deletes only inside the "Hacker Data" subfolder.
+// Hacker reads, writes, and deletes only inside the "Hacker Data" subfolder,
+// in one folder per golfer profile.
 
 import { deleteMeta, getMeta, setMeta } from './db';
+import { activeProfile } from './profiles';
 
 export const SUBFOLDER = 'Hacker Data';
 const HANDLE_KEY = 'videoFolderHandle';
@@ -30,6 +32,19 @@ export function isSupported(): boolean {
   return typeof window !== 'undefined' && typeof window.showDirectoryPicker === 'function';
 }
 
+/** This profile's folder inside Hacker Data. */
+async function profileDir(root: FileSystemDirectoryHandle): Promise<FileSystemDirectoryHandle> {
+  const profile = activeProfile();
+  if (!profile) throw new Error('No golfer profile is selected.');
+  const data = await root.getDirectoryHandle(SUBFOLDER, { create: true });
+  return data.getDirectoryHandle(profile.folderName, { create: true });
+}
+
+/** Where this profile's videos go, for showing on screen, such as "Videos/Hacker Data/Tim (3f2a)". */
+export function displayPath(rootName: string): string {
+  return `${rootName}/${SUBFOLDER}/${activeProfile()?.folderName ?? ''}`;
+}
+
 async function storedHandle(): Promise<FileSystemDirectoryHandle | undefined> {
   return getMeta<FileSystemDirectoryHandle>(HANDLE_KEY);
 }
@@ -46,7 +61,7 @@ export async function getStatus(): Promise<FolderStatus> {
   try {
     const p = await (handle as unknown as PermissionHandle).queryPermission(RW);
     if (p !== 'granted') return { state: 'needs-permission', name: handle.name };
-    await handle.getDirectoryHandle(SUBFOLDER, { create: true });
+    await profileDir(handle);
     return { state: 'ready', name: handle.name };
   } catch (e) {
     return { state: 'error', name: handle.name, message: errorText(e) };
@@ -63,7 +78,7 @@ export async function chooseFolder(): Promise<FolderStatus> {
     if (e instanceof DOMException && e.name === 'AbortError') return getStatus(); // golfer cancelled
     throw e;
   }
-  await handle.getDirectoryHandle(SUBFOLDER, { create: true });
+  await profileDir(handle);
   await setMeta(HANDLE_KEY, handle);
   return getStatus();
 }
@@ -85,12 +100,28 @@ export async function forgetFolder(): Promise<void> {
   await deleteMeta(HANDLE_KEY);
 }
 
-/** The Hacker Data subfolder, or null if the folder is not ready. */
+/** This profile's folder inside Hacker Data, or null if the folder is not ready. */
 async function dataDir(): Promise<FileSystemDirectoryHandle | null> {
   const status = await getStatus();
   if (status.state !== 'ready') return null;
+  return profileDir((await storedHandle())!);
+}
+
+/**
+ * Deletes this profile's whole folder inside Hacker Data, for when the profile is deleted.
+ * Returns false if the folder is not connected, so nothing was deleted.
+ */
+export async function deleteProfileFolder(): Promise<boolean> {
+  const profile = activeProfile();
   const handle = await storedHandle();
-  return handle!.getDirectoryHandle(SUBFOLDER, { create: true });
+  if (!profile || !handle || (await getStatus()).state !== 'ready') return false;
+  const data = await handle.getDirectoryHandle(SUBFOLDER, { create: true });
+  try {
+    await data.removeEntry(profile.folderName, { recursive: true });
+  } catch (e) {
+    if (!(e instanceof DOMException && e.name === 'NotFoundError')) throw e;
+  }
+  return true;
 }
 
 export function videoFileNameFor(swingId: string, originalName: string): string {

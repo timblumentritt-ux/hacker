@@ -6,7 +6,7 @@ Project spec for Claude Code, written with the owner (Tim)
 
 Build a web app called Hacker that runs in a desktop browser on a MacBook or PC. The golfer films swings with his iPhone's Camera app and, later, uploads the videos at a computer. Hacker measures each swing's body motion, keeps a small rolling set of swings, and prepares a briefing that he pastes into a Claude chat before a round. During the round he sends Claude one image from a new swing and gets a quick review of what he is doing right and wrong.
 
-- **Who:** built first for the owner and designed for golfers with 10 to 20 handicaps, who can fix a problem once they see it but are not yet consistent. No public release is planned. The owner has no web development background and wants Claude Code to write and build the app.
+- **Who:** built first for the owner and designed for golfers with 10 to 20 handicaps, who can fix a problem once they see it but are not yet consistent. The site is public, so any golfer can use it; each golfer's swings stay in their own browser. The owner has no web development background and wants Claude Code to write and build the app.
 - **Why a web app:** an iPhone app on a free Apple account must be reinstalled every week, which the owner will not accept. A web app has nothing to install or sign.
 - **How swings get in:** the golfer records with the iPhone Camera app in slow motion (1080p, 240 fps), face-on. At a computer he uploads the videos and labels each one with a swing type and a rating from 1 to 5 (5 best).
 - **Analysis:** it all happens in the browser on the computer, with no server. A pose model finds the body joints in every frame, and the app finds the swing phases and computes a handful of body metrics.
@@ -34,7 +34,7 @@ The app succeeds if a batch of swings goes from iPhone to analyzed in minutes at
 **Non-goals (for now)**
 
 - No iPhone app, App Store release, or Apple developer account.
-- No server, online accounts or login, cloud sync, or multi-user support. The profile is stored in the browser.
+- No server, online accounts, passwords, or cloud sync. Golfers create local profiles in the browser, and several golfers can share one browser.
 - No live recording in the web app. It only imports videos.
 - No distance, wind, or yardage input.
 - No universal ideal swing: the golfer's own best swings are the target.
@@ -45,7 +45,7 @@ The app succeeds if a batch of swings goes from iPhone to analyzed in minutes at
 The owner has settled these. Claude Code should not reopen them without asking.
 
 - The app is called Hacker. It is a web app for desktop browsers (current Chrome and Edge) on a Mac or a PC, from one codebase. Safari and other desktop browsers are not supported. There is no iPhone app.
-- The app runs entirely in the browser: no server, no accounts, and no uploads of videos or data. It is hosted as a static website.
+- The app runs entirely in the browser: no server, no accounts, and no uploads of videos or data. It is hosted as a public static website on GitHub Pages, open to anyone.
 - Video comes from the iPhone Camera app in slow motion, 1080p at 240 fps, one swing per clip. Swings saved into the library need that kind of video (120 fps or more). For checking one particular swing, Hacker also accepts lower frame rates and lower resolution, and saves nothing (see Video quality).
 - The phone is placed face-on only. There is one camera angle.
 - There is no yardage. The six club categories are Drive (with a tee), Fairway wood (no tee), 4/5/6 iron, 7/8/9 iron, Wedge, and Chip. Drive, Fairway wood, and 4/5/6 iron are full power only. 7/8/9 iron and Wedge can be full or three-quarters. Chip has no power setting. A hybrid goes in Fairway wood, and a 3-iron goes in 4/5/6 iron.
@@ -56,7 +56,7 @@ The owner has settled these. Claude Code should not reopen them without asking.
 - The export is a text briefing to paste into Claude, plus images. A backup is one JSON file.
 - Video can be kept in a folder on the owner's computer, chosen in Settings. Without a folder, no video is kept and playback uses skeleton figures.
 - On the course, the golfer sends Claude a frame sheet image, not video, because Claude chat cannot read video. The frame sheet is made on the iPhone, and Hacker keeps nothing from it.
-- The golfer has a profile in the browser, with a name and right or left hand, and no login.
+- Each golfer creates a profile in the browser, with a name and right or left hand, and no login or password. Several profiles can share one browser, and each profile's swings are stored apart from the others. Profiles are not private from other people who use the same browser, and the app says so. (Changed 2026-11-06: Hacker is now for any golfer, not only the owner. Online accounts were considered and turned down to keep the no-server design.)
 - The database uses versioned schemas, so changes migrate the golfer's data.
 - Claude Design provides the screens. Claude Code builds the logic and placeholder screens.
 
@@ -115,7 +115,7 @@ The app is called Hacker. It is a static website that does all of its work in th
 | Build tool | Vite (suggested) |
 | Pose model | MediaPipe Pose Landmarker running in the browser (suggested). Claude Code tests it and confirms it or proposes a better fit |
 | Storage | IndexedDB in the browser, with persistent storage requested |
-| Hosting | A free static host such as Cloudflare Pages, Netlify, or GitHub Pages, chosen with the owner. The site holds code and the pose model, and no user data |
+| Hosting | GitHub Pages, from a public GitHub repository (chosen by the owner on 2026-11-06). `npm run deploy` runs the tests, builds the site, and publishes it to the gh-pages branch. The site holds code and the pose model, and no user data |
 | Dependencies | As few as possible. Claude Code asks before adding one |
 
 - Host the pose model files with the app, so the browser contacts no third-party servers. Add no analytics, trackers, or third-party scripts.
@@ -158,7 +158,7 @@ There is no yardage. A shot is described by a club category and, where it applie
 
 **Camera angle.** The app requires face-on placement: the phone faces the golfer's chest, at about 90 degrees to the target line. Face-on cannot see depth, so checks that need a view down the target line are out of scope. Camera angle stays a stored field, so a second angle can be added later.
 
-**Golfer profile.** On first use the app asks for the golfer's name and whether he is right- or left-handed. The profile is stored in the browser, with no login or online account, and can be changed in Settings. Handedness decides which arm is the lead arm (the one nearer the target at address) and which is the trail arm. The analysis mirrors left-handed swings so one set of metric definitions works for both. Joint data is stored as captured, so changing handedness later only means recomputing the metrics.
+**Golfer profiles.** On first use the app asks for the golfer's name and whether they are right- or left-handed, and creates a profile. More golfers can add their own profiles on the Profiles screen and switch between them, so a family or a golf group can share one computer. Each profile has its own swings, upload counters, upload log, settings, and video folder, kept in its own database in the browser. There is no login or password, so anyone using the same browser can open any profile; the app says so. A golfer can change their name and hand in Settings, and delete their profile, which deletes its swings after confirmation. Handedness decides which arm is the lead arm (the one nearer the target at address) and which is the trail arm. The analysis mirrors left-handed swings so one set of metric definitions works for both. Joint data is stored as captured, so changing handedness later only means recomputing the metrics.
 
 ## Rolling sets
 
@@ -177,7 +177,7 @@ Hacker keeps a small set of swings, not a history.
 Hacker can keep each saved swing's video in a folder on the owner's computer, so videos stay out of the browser's storage and Side by side can play real video.
 
 - **Choosing the folder.** Settings has a Choose video folder button, using the browser's folder access (the File System Access API). Chrome and Edge both have it. Hacker still checks for it, and if it is missing or the folder cannot be opened, works with no video kept and says why in Settings.
-- **Where Hacker writes.** Hacker creates one subfolder named Hacker Data inside the chosen folder, and reads, writes, and deletes only inside it. It never touches other files.
+- **Where Hacker writes.** Hacker creates one subfolder named Hacker Data inside the chosen folder, and inside it one folder per profile, named when the profile is created. It reads, writes, and deletes only inside Hacker Data. It never touches other files. Each profile chooses its own video folder, and two profiles may choose the same one.
 - **What goes in.** After a swing is analyzed and saved, Hacker copies its video into the subfolder, named by the swing's id. A checked clip is never copied. Nothing leaves the computer.
 - **The rolling rule applies.** When a swing leaves its set, by the rolling rule or by deletion, its video file is deleted with it. The model 5 swing's video is pinned along with the swing. A setting chooses Keep video for all saved swings (the default) or only for model 5 swings. For all 200 swings the folder can reach about 5 to 10 GB; for the eight model 5 swings alone, about 200 to 400 MB. Settings shows the folder's size.
 - **Playback.** When both swings in Side by side have a kept video, the golfer can switch to real video, with the skeleton drawn over it if wanted. The video runs on the same clock as the skeleton, so sync modes, speeds, frame step, and phase jumps work the same. Claude Code chooses how (seeking every frame, or varying the playback rate) and tests it in milestone 4. A video that cannot play, such as HEVC on a PC without support, or that is missing, falls back to the skeleton for that side with a short message.
@@ -296,7 +296,7 @@ For each swing I send:
 Keep each answer short enough to read on a phone between shots. If the image is too unclear to judge, say so.
 ```
 
-**Backup file.** One JSON file with everything Hacker stores: the profile, all swings with their joint data, metrics, and frame sheets, and the upload counters. Restore reads it back, so the golfer can move to another computer or recover from a cleared browser. Hacker shows the days since the last backup. A separate CSV export has one row per swing and metric, with the swing type, rating, and ball result on each row. With a video folder chosen, the same backup file is also written there automatically (see Video folder). The video files are not inside the JSON; they are matched to swings by id.
+**Backup file.** One JSON file per profile with everything Hacker stores for it: the profile, all swings with their joint data, metrics, and frame sheets, and the upload counters. Restore reads it back, so the golfer can move to another computer or recover from a cleared browser. Hacker shows the days since the last backup. A separate CSV export has one row per swing and metric, with the swing type, rating, and ball result on each row. With a video folder chosen, the same backup file is also written there automatically (see Video folder). The video files are not inside the JSON; they are matched to swings by id.
 
 ## On-course review
 
@@ -350,7 +350,7 @@ The app keeps one record per stored swing, and nothing else from the swing's sou
 
 | Entity | Fields | Notes |
 | --- | --- | --- |
-| Golfer profile | name, handedness (right or left) | One profile in the browser, asked on first use and editable in Settings |
+| Golfer profile | id, name, handedness (right or left), database name, video subfolder name, created date | Any number per browser, kept in a small profile list. Each profile's other records live in its own database |
 | Swing | id, swing type (club category and power), rating 1 to 5, recording date, upload date, original file name, note, ball result (optional), video file name (if kept), camera angle, frame rate, phase times (address, top, impact, finish), metrics version, model 5 flag | One per stored swing. At most five per swing type and rating |
 | Joint data | swing, per-frame position and confidence of each tracked joint | About 0.5 MB per swing, stored compactly. Lets metrics be recomputed without the video |
 | Metrics | swing, metric name, value, unit | One row per metric per swing, so metrics can be added without changing the layout |
@@ -385,14 +385,15 @@ The visual design comes from Claude Design, not Claude Code. Claude Code builds 
 
 **Screens to design**
 
-- **First use:** asks for the golfer's name and right or left hand.
+- **First use:** asks for the golfer's name and right or left hand, and says that swings stay on this computer.
+- **Profiles:** lists the golfers in this browser, switches between them, and adds a new one. Says that profiles have no password.
 - **Library:** a grid of the eight swing types by the five ratings, showing how many of the five slots are filled, with a way into any set.
 - **Upload:** drop videos, then a table with one row per clip: preview frame, swing type, rating, and note. A button starts analysis, with progress and a result for each clip. Each clip shows its frame rate and a Full or Reduced label, with a Save or Check only choice and an optional ball result. Everything can be set from the keyboard, with a key list shown on screen.
 - **Swing detail:** the frame sheet, the video if kept, the metrics, the ball result, the note, Make this my model swing, change rating or swing type, and delete.
 - **Compare:** the swing against the typical 5, with the two frame sheets side by side.
 - **Side by side:** two skeleton figures, or real video when it is kept, play controls with slow motion, the sync mode, and a list of differences with short commentary.
 - **Export:** choose swing types, see what will be included, then Copy briefing, Download briefing, and Download images.
-- **Settings:** profile, storage used, backup and restore, metrics CSV, days since the last backup, and the video folder (choose or reconnect, size used, keep all videos or only model 5 videos).
+- **Settings:** profile (including Delete profile), storage used, backup and restore, metrics CSV, days since the last backup, and the video folder (choose or reconnect, size used, keep all videos or only model 5 videos).
 - **Recording guide:** how to set up and film, and the screenshot fallback.
 - **Frame sheet (iPhone):** one large Choose video button, progress, and the finished image with Save and Share.
 
@@ -502,7 +503,7 @@ The biggest risks are in the video: whether browsers can read the iPhone's files
 
 **Open questions for the owner**
 
-- Which free static host, and is a public web address acceptable? It would hold no personal data.
+- ~~Which free static host?~~ Answered 2026-11-06: GitHub Pages, public, open to anyone.
 - Should the on-course frame sheet page be built, or is the screenshot fallback enough? Starting rule: build it in milestone 6.
 - Which PC will the owner use, and does it run Windows 10 or Windows 11? Chrome or Edge is needed on the PC and on the Macs.
 - Should "newest" use the video's recording date? Starting rule: yes.

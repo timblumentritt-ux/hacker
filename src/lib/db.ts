@@ -1,10 +1,12 @@
 // IndexedDB data layer with versioned schemas.
+// Each golfer profile has its own database (see profiles.ts); all of them share the layout below.
 // Every change to the stored layout is a new entry in MIGRATIONS. Never edit an old entry.
 
-export const DB_NAME = 'hacker';
+/** Name of the database used before profiles existed. It is adopted as the first profile's database. */
+export const LEGACY_DB_NAME = 'hacker';
 
 export const STORES = {
-  meta: 'meta', // key-value: profile, settings, video folder handle
+  meta: 'meta', // key-value: settings, video folder handle
   swings: 'swings',
   jointData: 'jointData', // milestone 2
   metrics: 'metrics', // milestone 3
@@ -13,7 +15,7 @@ export const STORES = {
   uploadLog: 'uploadLog',
 } as const;
 
-type Migration = (db: IDBDatabase, tx: IDBTransaction) => void;
+export type Migration = (db: IDBDatabase, tx: IDBTransaction) => void;
 
 const MIGRATIONS: Migration[] = [
   // Version 1: first layout.
@@ -34,30 +36,71 @@ const MIGRATIONS: Migration[] = [
 
 export const DB_VERSION = MIGRATIONS.length;
 
+/** Opens a database and runs any migrations it has not had yet. */
+export function openDatabase(name: string, migrations: Migration[]): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const open = indexedDB.open(name, migrations.length);
+    open.onupgradeneeded = (e) => {
+      const db = open.result;
+      const tx = open.transaction!;
+      // A backup before migrating arrives with backup support in milestone 5.
+      for (let v = e.oldVersion; v < migrations.length; v++) migrations[v](db, tx);
+    };
+    open.onsuccess = () => resolve(open.result);
+    open.onerror = () => reject(open.error);
+    open.onblocked = () => reject(new Error('Hacker is open in another tab with an older version. Close it and reload.'));
+  });
+}
+
+let activeName: string | null = null;
 let dbPromise: Promise<IDBDatabase> | null = null;
 
+/** Points the data layer at a profile's database. Closes the previous one. */
+export async function useDatabase(name: string | null): Promise<void> {
+  if (name === activeName) return;
+  const old = dbPromise;
+  activeName = name;
+  dbPromise = null;
+  if (old) (await old.catch(() => null))?.close();
+}
+
+export function activeDatabaseName(): string | null {
+  return activeName;
+}
+
+/** The active profile's database. */
 export function openDb(): Promise<IDBDatabase> {
+  if (!activeName) return Promise.reject(new Error('No golfer profile is selected.'));
   if (!dbPromise) {
-    dbPromise = new Promise((resolve, reject) => {
-      const open = indexedDB.open(DB_NAME, DB_VERSION);
-      open.onupgradeneeded = (e) => {
-        const db = open.result;
-        const tx = open.transaction!;
-        // A backup before migrating arrives with backup support in milestone 5.
-        for (let v = e.oldVersion; v < DB_VERSION; v++) MIGRATIONS[v](db, tx);
+    const name = activeName;
+    const p = openDatabase(name, MIGRATIONS).then((db) => {
+      const forget = () => {
+        if (dbPromise === p) dbPromise = null;
       };
-      open.onsuccess = () => {
-        const db = open.result;
-        // If another tab upgrades the database, close ours so it can proceed.
-        db.onversionchange = () => db.close();
-        resolve(db);
+      // If another tab upgrades or deletes this database, close ours so it can proceed.
+      db.onversionchange = () => {
+        db.close();
+        forget();
       };
-      open.onerror = () => reject(open.error);
-      open.onblocked = () => reject(new Error('Hacker is open in another tab with an older version. Close it and reload.'));
+      db.onclose = forget;
+      return db;
     });
-    dbPromise.catch(() => (dbPromise = null));
+    p.catch(() => {
+      if (dbPromise === p) dbPromise = null;
+    });
+    dbPromise = p;
   }
   return dbPromise;
+}
+
+/** Deletes a whole database. */
+export function deleteDatabase(name: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const r = indexedDB.deleteDatabase(name);
+    r.onsuccess = () => resolve();
+    r.onerror = () => reject(r.error);
+    r.onblocked = () => reject(new Error('This profile is open in another tab. Close the other Hacker tabs and try again.'));
+  });
 }
 
 export function req<T>(r: IDBRequest<T>): Promise<T> {

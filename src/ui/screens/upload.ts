@@ -63,6 +63,22 @@ const state = {
 let rerender: (() => void) | null = null;
 const changed = () => rerender?.();
 
+/** True while clips are being saved, so the golfer cannot switch profiles midway. */
+export function uploadBusy(): boolean {
+  return state.running;
+}
+
+/** Forgets the clips waiting in the Upload table, for example when switching golfers. */
+export function resetUploadBatch(): void {
+  if (state.running) return;
+  for (const c of state.clips) URL.revokeObjectURL(c.url);
+  state.clips = [];
+  state.selected = 0;
+  state.progress = '';
+  state.banner = '';
+  state.touched = false;
+}
+
 const isVideoFile = (f: File) => f.type.startsWith('video/') || /\.(mov|mp4|m4v)$/i.test(f.name);
 const editable = (c: Clip) => c.status === 'ready' && !state.running;
 const current = (): Clip | undefined => state.clips[state.selected];
@@ -384,7 +400,7 @@ export const uploadScreen: Screen = {
     const refreshFolder = async () => {
       const st = await folder.getStatus();
       folderLine.replaceChildren();
-      if (st.state === 'ready') folderLine.append(h('span', { class: 'muted' }, `Videos are kept in "${st.name}/${folder.SUBFOLDER}".`));
+      if (st.state === 'ready') folderLine.append(h('span', { class: 'muted' }, `Videos are kept in "${folder.displayPath(st.name)}".`));
       else if (st.state === 'needs-permission' || st.state === 'error')
         folderLine.append(
           h('span', { class: 'warn' }, `The video folder "${st.name}" needs to be reconnected.`),

@@ -7,7 +7,6 @@ import { type Rating, type SwingTypeId, SWING_TYPES } from './swingTypes';
 import type { BallResult } from './ballResult';
 import {
   DEFAULT_SETTINGS,
-  type Profile,
   type Settings,
   type Swing,
   type UploadCounter,
@@ -15,13 +14,14 @@ import {
   UPLOADED_RESULTS,
 } from './types';
 import * as folder from './videoFolder';
+import { activeProfile, updateActiveProfile, type Profile } from './profiles';
 
 export const UNLOCK_UPLOADS = 5;
 
 // ---------- profile and settings ----------
 
-export const getProfile = () => getMeta<Profile>('profile');
-export const setProfile = (p: Profile) => setMeta('profile', p);
+export const getProfile = async (): Promise<Profile | undefined> => activeProfile() ?? undefined;
+export const setProfile = (p: Pick<Profile, 'name' | 'handedness'>) => updateActiveProfile(p);
 
 export async function getSettings(): Promise<Settings> {
   return { ...DEFAULT_SETTINGS, ...((await getMeta<Partial<Settings>>('settings')) ?? {}) };
