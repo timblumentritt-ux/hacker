@@ -12,10 +12,11 @@
 }
 body { margin: 0; }
 .nav { display: flex; gap: 16px; align-items: center; padding: 10px 20px; border-bottom: 1px solid var(--line); background: #fff; }
+nav[hidden] { display: none; }
 .nav a { color: #444; text-decoration: none; }
 .nav a.active { color: var(--accent); font-weight: 600; }
 .brand { margin-right: 12px; }
-.main { padding: 16px 20px; max-width: 1400px; }
+.main { padding: 16px 20px; max-width: 1600px; }
 h1 { font-size: 20px; margin: 4px 0 12px; }
 h2 { font-size: 16px; margin: 20px 0 8px; }
 table { border-collapse: collapse; }
@@ -32,7 +33,8 @@ button.primary { background: var(--accent); color: #fff; border: 1px solid var(-
 .dialog { max-width: 520px; }
 .dropzone { border: 2px dashed #aaa; padding: 24px; text-align: center; background: #fff; margin-bottom: 12px; }
 .dropzone.over { border-color: var(--accent); background: #eef4ff; }
-.upload-layout { display: grid; grid-template-columns: 1fr 340px; gap: 16px; align-items: start; }
+.upload-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+.table-scroll { overflow-x: auto; }
 .clips td { white-space: nowrap; }
 .clips tr.selected td { background: #e8f0ff; }
 .clips tr.missing td.need { outline: 2px solid var(--warn); outline-offset: -2px; }

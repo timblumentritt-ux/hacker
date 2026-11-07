@@ -57,6 +57,8 @@ const state = {
   running: false,
   progress: '',
   banner: '',
+  /** False until the golfer labels or picks a clip; until then the selection stays on the first clip. */
+  touched: false,
 };
 let rerender: (() => void) | null = null;
 const changed = () => rerender?.();
@@ -69,7 +71,7 @@ function sortClips(): void {
   const selKey = current()?.key;
   state.clips.sort((a, b) => a.recordedAt - b.recordedAt || a.file.name.localeCompare(b.file.name));
   const i = state.clips.findIndex((c) => c.key === selKey);
-  state.selected = i >= 0 ? i : 0;
+  state.selected = state.touched ? Math.max(0, i) : Math.max(0, state.clips.findIndex((c) => c.status === 'ready'));
 }
 
 async function addFiles(files: File[]): Promise<void> {
@@ -90,6 +92,7 @@ async function addFiles(files: File[]): Promise<void> {
     added.push(clip);
   }
   if (added.length === 0) return;
+  if (!state.clips.some((c) => c.status === 'ready' && !added.includes(c))) state.touched = false;
   state.banner = '';
   sortClips();
   changed();
@@ -154,6 +157,7 @@ function makeThumb(url: string): Promise<string | null> {
 
 function applyAction(a: KeyAction, ui: { preview: HTMLVideoElement; focusNote: () => void }): void {
   const c = current();
+  if (a.type !== 'play' && a.type !== 'help') state.touched = true;
   switch (a.type) {
     case 'move':
       state.selected = Math.max(0, Math.min(state.clips.length - 1, state.selected + a.delta));
@@ -398,7 +402,7 @@ export const uploadScreen: Screen = {
     let previewKey = '';
 
     const keysBox = h('div', { class: 'card' });
-    const table = h('div');
+    const table = h('div', { class: 'table-scroll' });
     const logBox = h('div');
     const statusLine = h('div');
 
@@ -438,7 +442,7 @@ export const uploadScreen: Screen = {
       const note = h('input', {
         class: 'note', type: 'text', value: c.note, disabled: off, placeholder: 'note',
         oninput: (e: Event) => (c.note = (e.target as HTMLInputElement).value),
-        onfocus: () => { if (state.selected !== i) { state.selected = i; updateSelection(); } },
+        onfocus: () => { state.touched = true; if (state.selected !== i) { state.selected = i; updateSelection(); } },
         onkeydown: (e: KeyboardEvent) => {
           if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
           e.stopPropagation();
@@ -447,7 +451,7 @@ export const uploadScreen: Screen = {
 
       return h('tr', {
         class: `${i === state.selected ? 'selected' : ''} ${c.missing ? 'missing' : ''}`,
-        onclick: () => { if (state.selected !== i) { state.selected = i; changed(); } },
+        onclick: () => { state.touched = true; if (state.selected !== i) { state.selected = i; changed(); } },
       },
         h('td', null, String(i + 1)),
         h('td', null, c.thumb ? h('img', { src: c.thumb, alt: '' }) : ''),

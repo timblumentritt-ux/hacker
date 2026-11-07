@@ -3,3 +3,4 @@ dist/
 TestVideos/
 .DS_Store
 *.local
+scripts/makevideo

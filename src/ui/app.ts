@@ -51,9 +51,14 @@ export function startApp(container: HTMLElement): void {
   const main = h('main', { class: 'main' });
   container.replaceChildren(nav, main);
 
+  // Each navigation gets a number. If the golfer navigates again while a screen is still loading,
+  // the older screen is thrown away, so two screens never run at once.
+  let latest = 0;
   const render = async () => {
+    const mine = ++latest;
     const [name, ...params] = location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
     const profile = await getProfile();
+    if (mine !== latest) return;
     if (!profile && name !== 'welcome' && name !== 'diagnostics') return go('welcome');
     if (profile && name === 'welcome') return go('library');
     const screen = ROUTES[name];
@@ -63,12 +68,15 @@ export function startApp(container: HTMLElement): void {
     cleanup = undefined;
     for (const a of nav.querySelectorAll('a')) a.classList.toggle('active', a.dataset.path === name);
     nav.hidden = !profile;
-    main.replaceChildren();
+    const page = h('div');
+    main.replaceChildren(page);
     document.title = `${screen.title} – Hacker`;
     try {
-      cleanup = await screen.mount(main, params);
+      const done = await screen.mount(page, params);
+      if (mine === latest) cleanup = done;
+      else if (done) done();
     } catch (e) {
-      main.append(h('p', { class: 'error' }, `Something went wrong: ${e instanceof Error ? e.message : String(e)}`));
+      page.append(h('p', { class: 'error' }, `Something went wrong: ${e instanceof Error ? e.message : String(e)}`));
       console.error(e);
     }
   };

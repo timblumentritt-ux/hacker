@@ -80,7 +80,11 @@ export const swingScreen: Screen = {
       const warnings: string[] = [];
       if (plan.losesModel) warnings.push('This swing stops being the model 5 swing for its swing type.');
       if (plan.selfDropped) warnings.push('The new set already holds five newer swings, so this swing will be deleted.');
-      if (plan.evicted.length) warnings.push(`The new set is full, so the oldest swing${plan.evicted.length > 1 ? 's' : ''} there (${plan.evicted.map((s) => formatDate(s.recordedAt)).join(', ')}) will be deleted, with ${plan.evicted.length > 1 ? 'their videos' : 'its video'}.`);
+      if (plan.evicted.length) {
+        const which = plan.evicted.map((s) => `${s.fileName}, recorded ${formatDate(s.recordedAt)}`).join('; ');
+        const videos = plan.evicted.some((s) => s.videoFileName) ? ', along with its kept video' : '';
+        warnings.push(`The new set is full, so its oldest swing${plan.evicted.length > 1 ? 's' : ''} (${which}) will be deleted${videos}.`);
+      }
       if (warnings.length && !(await confirmAction('Change this swing?', warnings.join(' '), plan.selfDropped || plan.evicted.length ? 'Change and delete' : 'Change'))) return;
       await applyLabelChange(id, change);
       if (plan.selfDropped) go(`set/${change.swingType}/${change.rating}`);
