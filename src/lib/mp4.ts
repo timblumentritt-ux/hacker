@@ -12,7 +12,7 @@ export interface VideoHeader {
   /** Codec four-character code, such as "hvc1" (HEVC) or "avc1" (H.264). */
   codec: string | null;
   frameCount: number | null;
-  /** Most common frame rate in the file. */
+  /** Frame rate at full speed (ignores slowed-down stretches). */
   nominalFps: number | null;
   /** Frames divided by duration. Lower than nominal when part of the clip is slowed down. */
   averageFps: number | null;
@@ -153,8 +153,8 @@ interface TrackInfo {
   width: number;
   height: number;
   frameCount: number;
-  /** Most common time between frames, in timescale units. */
-  commonDelta: number;
+  /** Typical time between frames at full speed, in timescale units (may be fractional). */
+  fastDelta: number;
 }
 
 function readTrack(b: Uint8Array, trak: Box): TrackInfo | null {
@@ -187,25 +187,25 @@ function readTrack(b: Uint8Array, trak: Box): TrackInfo | null {
   const stsd = child(b, stbl, 'stsd');
   const codec = stsd && stsd.dataStart + 16 <= stsd.end ? fourcc(b, stsd.dataStart + 12) : null;
 
-  let frameCount = 0;
-  let commonDelta = 0;
+  // Frame times are whole timescale units, so 240 fps at a 600 timescale alternates gaps of 2 and 3.
+  // Average the gaps close to the shortest one, which ignores slowed-down stretches.
+  const runs: [count: number, delta: number][] = [];
   const stts = child(b, stbl, 'stts');
   if (stts) {
     const entries = v.getUint32(stts.dataStart + 4);
-    let best = 0;
     for (let i = 0; i < entries; i++) {
       const at = stts.dataStart + 8 + i * 8;
       if (at + 8 > stts.end) break;
-      const n = v.getUint32(at);
-      const delta = v.getUint32(at + 4);
-      frameCount += n;
-      if (n > best && delta > 0) {
-        best = n;
-        commonDelta = delta;
-      }
+      runs.push([v.getUint32(at), v.getUint32(at + 4)]);
     }
   }
-  return { handler, timescale, duration, codec, width, height, frameCount, commonDelta };
+  const frameCount = runs.reduce((n, [c]) => n + c, 0);
+  const positive = runs.filter(([c, d]) => c > 0 && d > 0);
+  const minDelta = positive.length ? Math.min(...positive.map(([, d]) => d)) : 0;
+  const fast = positive.filter(([, d]) => d <= minDelta * 2);
+  const fastFrames = fast.reduce((n, [c]) => n + c, 0);
+  const fastDelta = fastFrames ? fast.reduce((n, [c, d]) => n + c * d, 0) / fastFrames : 0;
+  return { handler, timescale, duration, codec, width, height, frameCount, fastDelta };
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -240,7 +240,7 @@ export async function readVideoHeader(read: ByteReader, fileSize: number): Promi
     height: video?.height || null,
     codec: video?.codec ?? null,
     frameCount: video?.frameCount || null,
-    nominalFps: video && video.commonDelta ? round2(video.timescale / video.commonDelta) : null,
+    nominalFps: video && video.fastDelta ? round2(video.timescale / video.fastDelta) : null,
     averageFps: video && durationSec ? round2(video.frameCount / durationSec) : null,
   };
 }

@@ -111,3 +111,13 @@ describe('video header', () => {
     expect(parseAppleDate('garbage')).toBeNull();
   });
 });
+
+describe('frame rate from frame gaps', () => {
+  it('reads 240 fps when a 600 timescale makes the gaps alternate between 2 and 3', async () => {
+    const alt: [number, number][] = [];
+    for (let i = 0; i < 240; i++) alt.push([1, i % 2 ? 2 : 3]);
+    const file = box('moov', mvhd(0), videoTrak({ rotate: false, w: 1920, h: 1080, timescale: 600, stts: alt, codec: 'hvc1' }));
+    const h = await readVideoHeader(bufferReader(file), file.length);
+    expect(h!.nominalFps).toBe(240);
+  });
+});
